@@ -2,19 +2,21 @@ using System.Text.Json.Serialization;
 
 public class Film{
     public Film(string title, int episode_id, string desc){
-        this.title = title;
-        this.episode_id = episode_id;
-        this.desc = desc;
+        this.Title = title;
+        this.Episode_id = episode_id;
+        this.Desc = desc;
     }
 
     public Film(){
-        this.title = "";
-        this.episode_id = 0;
-        this.desc = "";
+        this.Title = "";
+        this.Episode_id = 0;
+        this.Desc = "";
     }
-    public string title { get; set; }
-    public int episode_id { get; set; }
+    [JsonPropertyName("title")]
+    public string Title { get; set; }
+    [JsonPropertyName("episode_id")]
+    public int Episode_id { get; set; }
     [JsonPropertyName("opening_crawl")]
-    public string desc { get; set; }
+    public string Desc { get; set; }
 
 }
