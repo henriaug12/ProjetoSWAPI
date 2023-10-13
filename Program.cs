@@ -2,12 +2,49 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 public class Program {
+    static async Task<JsonNode> GetFirstPage(HttpClient client, JsonNode scrollingNode){
+        var previousUrl = JsonSerializer.Deserialize<string>(scrollingNode["previous"]);
+            if(previousUrl is not null) Console.WriteLine("Url did not start on page 1." + 
+                            "\nMoving to page 1, please wait...");
+            while(previousUrl is not null){
+                var json = await client.GetStringAsync(previousUrl);
+                scrollingNode = JsonNode.Parse(json);
+                previousUrl = JsonSerializer.Deserialize<string>(scrollingNode["previous"]);
+            }
+            return scrollingNode;
+    }
+    static async Task<JsonNode> GetChosenPage(HttpClient client, JsonNode scrollingNode, int totalPages, int chosenPage){
+        var nextUrl = JsonSerializer.Deserialize<string>(scrollingNode["next"]);
+        int currentPage = 1;
+            while(nextUrl is not null && currentPage < chosenPage && chosenPage <= totalPages){
+                var json = await client.GetStringAsync(nextUrl);
+                scrollingNode = JsonNode.Parse(json);
+                nextUrl = JsonSerializer.Deserialize<string>(scrollingNode["next"]);
+                currentPage +=1 ;
+            }
+            if (chosenPage > totalPages){
+                Console.WriteLine("Invalid page option");
+                return null;
+            }
+            else return scrollingNode;
+    }
     static async Task GetFilms(HttpClient client){
         try{
             var url = "https://swapi.dev/api/films/";
             var json = await client.GetStringAsync(url);
             
             JsonNode? filmListNode = JsonNode.Parse(json);
+            filmListNode = await GetFirstPage(client,filmListNode); // garante que o Node está começando da primeira página
+                                                                              // guarantees that the Node is starting on the first page
+            int totalPages = await CountPages(client, url);
+            if(totalPages > 1) {
+                Console.WriteLine($"There are {totalPages} pages, which one would you like to see?");
+                var input = Console.ReadLine();
+                if (int.TryParse(input, out int chosenPage)){
+                   filmListNode = await GetChosenPage(client,filmListNode,totalPages,chosenPage);
+                } else Console.WriteLine("Input was not an integer number");
+            }
+
             if(filmListNode is not null){
                 var results = JsonSerializer.Deserialize<List<Film>>(filmListNode["results"]);
             
@@ -16,7 +53,7 @@ public class Program {
                         $"{movie.Desc}\n");
                 }
             }
-            else Console.WriteLine("Json node was null");
+            else Console.WriteLine("JsonNode was null");
         }
         catch (NullReferenceException)
         {
@@ -28,8 +65,19 @@ public class Program {
         try{
             var url = "https://swapi.dev/api/people/";
             var json = await client.GetStringAsync(url);
-            
+
             JsonNode? characterListNode = JsonNode.Parse(json);
+            characterListNode = await GetFirstPage(client,characterListNode); // garante que o Node está começando da primeira página
+                                                                              // guarantees that the Node is starting on the first page
+            int totalPages = await CountPages(client, url);
+            if(totalPages > 1) {
+                Console.WriteLine($"There are {totalPages} pages, which one would you like to see?");
+                var input = Console.ReadLine();
+                if (int.TryParse(input, out int chosenPage)){
+                   characterListNode = await GetChosenPage(client,characterListNode,totalPages,chosenPage);
+                } else Console.WriteLine("Input was not an integer number");
+            }
+
             if(characterListNode is not null){
                 var results = JsonSerializer.Deserialize<List<Character>>(characterListNode["results"]);
             
@@ -38,7 +86,7 @@ public class Program {
                         $", born in {character.Birth_year}\n");
                 }
             }
-            else Console.WriteLine("Json node was null");
+            else Console.WriteLine("JsonNode was null");
         }
         catch (NullReferenceException)
         {
@@ -47,10 +95,21 @@ public class Program {
     }
     static async Task GetPlanets(HttpClient client){
         try{
-            var url = "https://swapi.dev/api/planets/";
+            var url = "https://swapi.dev/api/planets/?page=5";
             var json = await client.GetStringAsync(url);
             
             JsonNode? planetListNode = JsonNode.Parse(json);
+            planetListNode = await GetFirstPage(client,planetListNode); // garante que o Node está começando da primeira página
+                                                                              // guarantees that the Node is starting on the first page
+            int totalPages = await CountPages(client, url);
+            if(totalPages > 1) {
+                Console.WriteLine($"There are {totalPages} pages, which one would you like to see?");
+                var input = Console.ReadLine();
+                if (int.TryParse(input, out int chosenPage)){
+                   planetListNode = await GetChosenPage(client,planetListNode,totalPages,chosenPage);
+                } else Console.WriteLine("Input was not an integer number");
+            }
+
             if(planetListNode is not null){
                 var results = JsonSerializer.Deserialize<List<Planet>>(planetListNode["results"]);
                 
@@ -59,7 +118,7 @@ public class Program {
                         $"{planet.Population} inhabitants");
                 }
             }
-            else Console.WriteLine("Json node was null");
+            else Console.WriteLine("JsonNode was null");
         }
         catch (NullReferenceException)
         {
@@ -71,8 +130,7 @@ public class Program {
         try{
             var url = "https://swapi.dev/api/people/";
             var json = await client.GetStringAsync(url);
-            
-            await CountPages(client, url);
+        
 
             JsonNode? characterListNode = JsonNode.Parse(json);
             if(characterListNode is not null){
@@ -100,10 +158,11 @@ public class Program {
         }
     }
 
-    static async Task CountPages(HttpClient client,string url){
+    static async Task<int> CountPages(HttpClient client,string url){
         try{
             var json = await client.GetStringAsync(url);
             JsonNode? pageCountNode = JsonNode.Parse(json);
+            int count = 1;
             if(pageCountNode is not null){
                 var previousUrl = JsonSerializer.Deserialize<string>(pageCountNode["previous"]);
                 while(previousUrl is not null){
@@ -111,7 +170,6 @@ public class Program {
                     pageCountNode = JsonNode.Parse(json);
                     previousUrl = JsonSerializer.Deserialize<string>(pageCountNode["previous"]);
                 }
-                int count = 1;
                 var nextUrl = JsonSerializer.Deserialize<string>(pageCountNode["next"]);
                 while(nextUrl is not null){
                     count += 1;
@@ -119,15 +177,15 @@ public class Program {
                     pageCountNode = JsonNode.Parse(json);
                     nextUrl = JsonSerializer.Deserialize<string>(pageCountNode["next"]);
                 }
-                Console.WriteLine($"{count} paginas");
-            }
+                return count;
+            } else return 0;
         }
         catch(NullReferenceException){
             throw new NullReferenceException();
         }
     }
 
-    static async Task Main(string[] args){
+    static async Task Main(){
         HttpClient client = new();
         client.DefaultRequestHeaders.Accept.Clear();
         client.DefaultRequestHeaders.Accept.Add(
