@@ -2,8 +2,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 public class Program {
-    static async Task<JsonNode> GetFirstPage(HttpClient client, JsonNode scrollingNode){
-        var previousUrl = JsonSerializer.Deserialize<string>(scrollingNode["previous"]);
+    static async Task<JsonNode> ScrollToFirstPage(HttpClient client, JsonNode scrollingNode){
+        try{
+            var previousUrl = JsonSerializer.Deserialize<string>(scrollingNode["previous"]);
             if(previousUrl is not null) Console.WriteLine("Url did not start on page 1." + 
                             "\nMoving to page 1, please wait...");
             while(previousUrl is not null){
@@ -12,21 +13,64 @@ public class Program {
                 previousUrl = JsonSerializer.Deserialize<string>(scrollingNode["previous"]);
             }
             return scrollingNode;
+        }
+        catch(NullReferenceException){
+            throw new NullReferenceException();
+        }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
+        }
     }
-    static async Task<JsonNode> GetChosenPage(HttpClient client, JsonNode scrollingNode, int totalPages, int chosenPage){
-        var nextUrl = JsonSerializer.Deserialize<string>(scrollingNode["next"]);
-        int currentPage = 1;
-            while(nextUrl is not null && currentPage < chosenPage && chosenPage <= totalPages){
-                var json = await client.GetStringAsync(nextUrl);
-                scrollingNode = JsonNode.Parse(json);
-                nextUrl = JsonSerializer.Deserialize<string>(scrollingNode["next"]);
-                currentPage +=1 ;
+    static async Task<JsonNode> ScrollToChosenPage(HttpClient client, JsonNode scrollingNode, int totalPages, int chosenPage){
+        try{
+            var nextUrl = JsonSerializer.Deserialize<string>(scrollingNode["next"]);
+            int currentPage = 1;
+                while(nextUrl is not null && currentPage < chosenPage && chosenPage <= totalPages){
+                    var json = await client.GetStringAsync(nextUrl);
+                    scrollingNode = JsonNode.Parse(json);
+                    nextUrl = JsonSerializer.Deserialize<string>(scrollingNode["next"]);
+                    currentPage +=1 ;
+                }
+                if (chosenPage > totalPages){
+                    Console.WriteLine("Invalid page option");
+                    return null;
+                }
+                else return scrollingNode;
+        }
+        catch(NullReferenceException){
+            throw new NullReferenceException();
+        }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
+        }
+    }
+    
+    static async Task<JsonNode> GetDirectPage(HttpClient client, string url, int totalPages, int chosenPage){
+        try{
+            if(url.Contains("?page=")){
+                url = url.Remove(url.Length -1, 1) + $"{chosenPage}";
             }
-            if (chosenPage > totalPages){
+            else {
+                url += $"?page={chosenPage}";
+                }
+
+            if(chosenPage<=totalPages){
+                
+                var json = await client.GetStringAsync(url);
+                var returnedNode = JsonNode.Parse(json);
+                return returnedNode;
+            }
+            else {
                 Console.WriteLine("Invalid page option");
                 return null;
             }
-            else return scrollingNode;
+        }
+        catch(NullReferenceException){
+            throw new NullReferenceException();
+        }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
+        }
     }
     static async Task GetFilms(HttpClient client){
         try{
@@ -34,14 +78,13 @@ public class Program {
             var json = await client.GetStringAsync(url);
             
             JsonNode? filmListNode = JsonNode.Parse(json);
-            filmListNode = await GetFirstPage(client,filmListNode); // garante que o Node está começando da primeira página
-                                                                              // guarantees that the Node is starting on the first page
+
             int totalPages = await CountPages(client, url);
             if(totalPages > 1) {
                 Console.WriteLine($"There are {totalPages} pages, which one would you like to see?");
                 var input = Console.ReadLine();
                 if (int.TryParse(input, out int chosenPage)){
-                   filmListNode = await GetChosenPage(client,filmListNode,totalPages,chosenPage);
+                   filmListNode = await GetDirectPage(client, url, totalPages, chosenPage);
                 } else Console.WriteLine("Input was not an integer number");
             }
 
@@ -59,7 +102,9 @@ public class Program {
         {
             throw new NullReferenceException();
         }
-        
+        catch(HttpRequestException){
+            throw new HttpRequestException();
+        }
     }
     static async Task GetCharacters(HttpClient client){
         try{
@@ -67,14 +112,13 @@ public class Program {
             var json = await client.GetStringAsync(url);
 
             JsonNode? characterListNode = JsonNode.Parse(json);
-            characterListNode = await GetFirstPage(client,characterListNode); // garante que o Node está começando da primeira página
-                                                                              // guarantees that the Node is starting on the first page
+
             int totalPages = await CountPages(client, url);
             if(totalPages > 1) {
                 Console.WriteLine($"There are {totalPages} pages, which one would you like to see?");
                 var input = Console.ReadLine();
                 if (int.TryParse(input, out int chosenPage)){
-                   characterListNode = await GetChosenPage(client,characterListNode,totalPages,chosenPage);
+                   characterListNode = await GetDirectPage(client, url, totalPages, chosenPage);
                 } else Console.WriteLine("Input was not an integer number");
             }
 
@@ -88,9 +132,11 @@ public class Program {
             }
             else Console.WriteLine("JsonNode was null");
         }
-        catch (NullReferenceException)
-        {
+        catch (NullReferenceException){
             throw new NullReferenceException();
+        }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
         }
     }
     static async Task GetPlanets(HttpClient client){
@@ -99,14 +145,13 @@ public class Program {
             var json = await client.GetStringAsync(url);
             
             JsonNode? planetListNode = JsonNode.Parse(json);
-            planetListNode = await GetFirstPage(client,planetListNode); // garante que o Node está começando da primeira página
-                                                                              // guarantees that the Node is starting on the first page
+
             int totalPages = await CountPages(client, url);
             if(totalPages > 1) {
                 Console.WriteLine($"There are {totalPages} pages, which one would you like to see?");
                 var input = Console.ReadLine();
                 if (int.TryParse(input, out int chosenPage)){
-                   planetListNode = await GetChosenPage(client,planetListNode,totalPages,chosenPage);
+                   planetListNode = await GetDirectPage(client, url, totalPages, chosenPage);
                 } else Console.WriteLine("Input was not an integer number");
             }
 
@@ -124,8 +169,11 @@ public class Program {
         {
             throw new NullReferenceException();
         }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
+        }
     }
-    
+
     static async Task AllCharacters(HttpClient client){
         try{
             var url = "https://swapi.dev/api/people/";
@@ -152,9 +200,11 @@ public class Program {
             }
             else Console.WriteLine("Json node was null");
         }
-        catch (NullReferenceException)
-        {
+        catch (NullReferenceException){
             throw new NullReferenceException();
+        }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
         }
     }
 
@@ -182,6 +232,9 @@ public class Program {
         }
         catch(NullReferenceException){
             throw new NullReferenceException();
+        }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
         }
     }
 
