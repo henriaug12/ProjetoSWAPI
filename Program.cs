@@ -45,6 +45,26 @@ public class Program {
         }
     }
     
+    static async Task<JsonNode> GetFirstPage(HttpClient client, string url){
+        try{
+            if(url.Contains("?page=")){
+                url = url.Remove(url.Length -1, 1) + "1";
+            }
+            else {
+                url += "?page=1";
+            }
+            var json = await client.GetStringAsync(url);
+            var returnedNode = JsonNode.Parse(json);
+            return returnedNode;
+        }
+        catch(NullReferenceException){
+            throw new NullReferenceException();
+        }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
+        }
+    }
+
     static async Task<JsonNode> GetDirectPage(HttpClient client, string url, int totalPages, int chosenPage){
         try{
             if(url.Contains("?page=")){
@@ -72,6 +92,64 @@ public class Program {
             throw new HttpRequestException();
         }
     }
+
+    static async Task<int> CountPages(HttpClient client,string url){
+        try{
+            JsonNode? pageCountNode = await GetFirstPage(client, url);
+            int count = 1;
+            if(pageCountNode is not null){
+                var nextUrl = JsonSerializer.Deserialize<string>(pageCountNode["next"]);
+                while(nextUrl is not null){
+                    Console.WriteLine($"{count} page(s)...");
+                    count += 1;
+                    var json = await client.GetStringAsync(nextUrl);
+                    pageCountNode = JsonNode.Parse(json);
+                    nextUrl = JsonSerializer.Deserialize<string>(pageCountNode["next"]);
+                }
+                return count;
+            } else return 0;
+        }
+        catch(NullReferenceException){
+            throw new NullReferenceException();
+        }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
+        }
+    }
+    static async Task GetAllCharacters(HttpClient client){
+        try{
+            var url = "https://swapi.dev/api/people/";
+            var json = await client.GetStringAsync(url);
+        
+
+            JsonNode? characterListNode = JsonNode.Parse(json);
+            if(characterListNode is not null){
+            
+                var results = JsonSerializer.Deserialize<List<Character>>(characterListNode["results"]);
+                var nextUrl = JsonSerializer.Deserialize<string>(characterListNode["next"]);
+
+                while(nextUrl is not null){
+                    json = await client.GetStringAsync(nextUrl);
+                    characterListNode = JsonNode.Parse(json);
+                    results.AddRange(JsonSerializer.Deserialize<List<Character>>(characterListNode["results"]));
+                    nextUrl = JsonSerializer.Deserialize<string>(characterListNode["next"]);
+                }
+                
+                foreach(var character in results){
+                    Console.WriteLine($"{character.Name}: {character.Gender}"+
+                        $", born in {character.Birth_year}");
+                } 
+            }
+            else Console.WriteLine("Json node was null");
+        }
+        catch(NullReferenceException){
+            throw new NullReferenceException();
+        }
+        catch(HttpRequestException){
+            throw new HttpRequestException();
+        }
+    }
+    
     static async Task GetFilms(HttpClient client){
         try{
             var url = "https://swapi.dev/api/films/";
@@ -98,7 +176,7 @@ public class Program {
             }
             else Console.WriteLine("JsonNode was null");
         }
-        catch (NullReferenceException)
+        catch(NullReferenceException)
         {
             throw new NullReferenceException();
         }
@@ -132,7 +210,7 @@ public class Program {
             }
             else Console.WriteLine("JsonNode was null");
         }
-        catch (NullReferenceException){
+        catch(NullReferenceException){
             throw new NullReferenceException();
         }
         catch(HttpRequestException){
@@ -165,72 +243,8 @@ public class Program {
             }
             else Console.WriteLine("JsonNode was null");
         }
-        catch (NullReferenceException)
+        catch(NullReferenceException)
         {
-            throw new NullReferenceException();
-        }
-        catch(HttpRequestException){
-            throw new HttpRequestException();
-        }
-    }
-
-    static async Task AllCharacters(HttpClient client){
-        try{
-            var url = "https://swapi.dev/api/people/";
-            var json = await client.GetStringAsync(url);
-        
-
-            JsonNode? characterListNode = JsonNode.Parse(json);
-            if(characterListNode is not null){
-            
-                var results = JsonSerializer.Deserialize<List<Character>>(characterListNode["results"]);
-                var nextUrl = JsonSerializer.Deserialize<string>(characterListNode["next"]);
-
-                while(nextUrl is not null){
-                    json = await client.GetStringAsync(nextUrl);
-                    characterListNode = JsonNode.Parse(json);
-                    results.AddRange(JsonSerializer.Deserialize<List<Character>>(characterListNode["results"]));
-                    nextUrl = JsonSerializer.Deserialize<string>(characterListNode["next"]);
-                }
-                
-                foreach(var character in results){
-                    Console.WriteLine($"{character.Name}: {character.Gender}"+
-                        $", born in {character.Birth_year}");
-                } 
-            }
-            else Console.WriteLine("Json node was null");
-        }
-        catch (NullReferenceException){
-            throw new NullReferenceException();
-        }
-        catch(HttpRequestException){
-            throw new HttpRequestException();
-        }
-    }
-
-    static async Task<int> CountPages(HttpClient client,string url){
-        try{
-            var json = await client.GetStringAsync(url);
-            JsonNode? pageCountNode = JsonNode.Parse(json);
-            int count = 1;
-            if(pageCountNode is not null){
-                var previousUrl = JsonSerializer.Deserialize<string>(pageCountNode["previous"]);
-                while(previousUrl is not null){
-                    json = await client.GetStringAsync(previousUrl);
-                    pageCountNode = JsonNode.Parse(json);
-                    previousUrl = JsonSerializer.Deserialize<string>(pageCountNode["previous"]);
-                }
-                var nextUrl = JsonSerializer.Deserialize<string>(pageCountNode["next"]);
-                while(nextUrl is not null){
-                    count += 1;
-                    json = await client.GetStringAsync(nextUrl);
-                    pageCountNode = JsonNode.Parse(json);
-                    nextUrl = JsonSerializer.Deserialize<string>(pageCountNode["next"]);
-                }
-                return count;
-            } else return 0;
-        }
-        catch(NullReferenceException){
             throw new NullReferenceException();
         }
         catch(HttpRequestException){
@@ -245,7 +259,7 @@ public class Program {
             new MediaTypeWithQualityHeaderValue("application/json"));
         int option = 0;
         while(option!=-1){
-            Console.WriteLine("Type 1 to see information about the Star Wars films\n"+
+            Console.WriteLine("\nType 1 to see information about the Star Wars films\n"+
                             "Type 2 to see information about the Star Wars characters\n"+
                             "Type 3 to see information about the Star Wars planets\n"+
                             "Type -1 to exit\n");
